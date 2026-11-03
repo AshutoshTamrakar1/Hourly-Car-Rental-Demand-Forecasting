@@ -1,4 +1,8 @@
-# Job-a-Thon-April-2022
+# Hourly Car Rental Demand Forecasting (LightGBM & Time-Series Feature Engineering)
+
+> **End-to-end time-series demand forecasting pipeline for hourly car rentals in Bangalore (Analytics Vidhya Job-A-Thon April 2022 — Top 70 Private Leaderboard), featuring cyclical Fourier encodings, leakage-free target aggregations, `TimeSeriesSplit` cross-validation, and LightGBM objective blending.**
+
+---
 
 ## Problem Statement
 ABC is a car rental company based out of Bangalore. It rents cars for both in and out stations at affordable prices. The users can rent different types of cars like Sedans, Hatchbacks, SUVs and MUVs, Minivans and so on.
@@ -19,3 +23,33 @@ Before building an ML model, feature engineering was done. Basic time related fe
 Private Leaderboard Rank - 70
 
 Public Leaderboard Rank - 127
+
+---
+
+## Refactored Pipeline & Improved Results
+
+### Key Improvements Made
+1. **Corrected & Expanded Feature Engineering (8 → 29 Features):**
+   - **Retained Crucial Temporal Signals:** Kept `wday` (day of week) and `year` in the training features (which were previously dropped prior to model fitting) and added a continuous trend feature (`days_since_start`) plus `dayofyear`.
+   - **Fixed Weekend Logic Bug:** Corrected `is_wknd` from `weekday // 4` (which misclassified Friday as a weekend) to `weekday >= 5` (Saturday & Sunday) and added a dedicated `is_friday` flag, `is_payday_window`, `part_of_day`, and `is_peak_hour`.
+   - **Cyclical Fourier Encodings:** Added `sin` and `cos` transformations for `hour`, `wday`, `month`, and `dayofyear` to preserve periodic continuity across boundaries (e.g., `hour=23` to `hour=0`).
+2. **Leakage-Free Target Aggregations:**
+   - Computed out-of-sample historical demand statistics (`mean`, `std`, `median` grouped by `(hour, wday)` and `(hour, month)`) strictly on the training split before mapping onto validation and test sets.
+3. **Validation Strategy & Full-Dataset Retraining:**
+   - Evaluated both `regression` (L2) and `poisson` LightGBM objectives alongside a 50/50 ensemble blend on the chronological 28-day holdout split (`17,602` train / `645` validation rows) and across 5-fold `TimeSeriesSplit` cross-validation.
+   - Retrained final models on **100% of the training data (`18,247` rows)** so the final submission incorporates the most recent 28 days of demand immediately preceding the test period (`2021-03-01` onwards).
+
+### Validation Performance Comparison (28-Day Holdout Split)
+
+| Model | Features | Best Iteration | Validation RMSE | Improvement vs. Original |
+| :--- | :---: | :---: | :---: | :---: |
+| Naive Baseline (`Hour × Weekday` Historical Mean) | 2 | — | `31.3326` | `+0.1986` |
+| **Original LightGBM (`poisson`)** | 8 | 73 | **`31.1340`** | — |
+| **Refactored LightGBM (`regression` L2)** | 29 | 25 | **`30.4374`** | **`-0.6966`** |
+| **Refactored LightGBM (`50/50 Blend` L2 + Poisson)** | 29 | — | **`30.3993`** | **`-0.7347`** |
+| **Refactored LightGBM (`poisson`)** | 29 | 55 | **`30.3894`** | **`-0.7446` (~2.4% reduction)** |
+
+### 5-Fold `TimeSeriesSplit` Cross-Validation
+Across 5 sequential 28-day (`645`-row) validation windows, the refactored model achieved:
+- **Fold 1:** `40.1678` | **Fold 2:** `33.4466` | **Fold 3:** `37.8521` | **Fold 4:** `33.8853` | **Fold 5:** `30.4374`
+- **Mean 5-Fold RMSE:** `35.1579 ± 3.4406`

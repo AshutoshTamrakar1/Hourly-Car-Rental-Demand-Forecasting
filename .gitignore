@@ -1,0 +1,14 @@
+# Dataset & submission CSV files
+*.csv
+data/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Python cache & virtual environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
